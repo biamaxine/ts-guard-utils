@@ -1,0 +1,19 @@
+{
+  "name": "ts-guard-utils",
+  "version": "1.1.0",
+  "description": "",
+  "keywords": [
+    "typescript"
+  ],
+  "author": "Bianca Maxine <biamaxine.dev@gmail.com>",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {},
+  "packageManager": "pnpm@10.33.0",
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
