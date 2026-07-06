@@ -14,6 +14,11 @@ export default defineConfig([
     plugins: { js, prettier },
     extends: ['js/recommended'],
     languageOptions: { globals: globals.node },
-    rules: { 'prettier/prettier': 'error' },
+    rules: {
+      'prettier/prettier': 'error',
+
+      'no-unused-vars': 'off',
+      'no-redeclare': 'off',
+    },
   },
 ]);
