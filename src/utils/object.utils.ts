@@ -26,7 +26,7 @@ export function pick<T extends PlainObject, K extends keyof T = keyof T>(
   ...keys: K[]
 ): Pick<T, K> {
   if (isEmpty(object) || isEmpty(keys)) return {} as Pick<T, K>;
-  const result: PlainObject = {};
+  const result = PlainObject({});
   for (const k of new Set(keys)) result[k as string] = object[k];
   return result as Pick<T, K>;
 }
@@ -57,7 +57,7 @@ export function omit<T extends PlainObject, K extends keyof T = keyof T>(
   ...keys: K[]
 ): Omit<T, K> {
   if (isEmpty(object) || isEmpty(keys)) return { ...object };
-  const result: PlainObject = {};
+  const result = PlainObject({});
   const set = new Set(keys as string[]);
   for (const k in object)
     if (isKeyOf(object, k) && !set.has(k)) result[k] = object[k];

@@ -1,4 +1,4 @@
-import { isNotNullable, isString, Nullable } from './types.utils';
+import { isNotNullable, isString } from './types.utils';
 
 /**
  * Remove elementos duplicados de um array, preservando a ordem.
@@ -59,7 +59,7 @@ export function clearNulls<T>(array: (T | null)[]): T[] {
  * @example
  *  clearNullables([0, null, '', undefined, false]); // [0, '', false]
  */
-export function clearNullables<T>(array: (T | Nullable)[]): T[] {
+export function clearNullables<T>(array: (T | undefined | null)[]): T[] {
   return array.filter(v => isNotNullable(v));
 }
 
@@ -108,6 +108,24 @@ export function chunk<T>(value: string | T[], size: number): string[] | T[][] {
 
   return result as string[] | T[][];
 }
+
+/**
+ * =============================================================================
+ * Todas as funções de aleatoriedade, definidas abaixo, recebem uma função
+ * `random` que por padrão, assume `Math.random`. Essa escolha de design permite
+ * que o desenvolvedor final tenha a possibilidade do introduzir aleatoriedade
+ * de deterministica e/ou reprodutibilidade.
+ *
+ * Tendo ciência de que validar uma função de aleatoriedade exigiria uma gama de
+ * testes extremamente ampla, além de um mínimo contexto do algorítimo e lógica
+ * utilizadas, a biblioteca escolhe confiar que a função `random`, quando
+ * fornecida, já foi validada e atende ao critério de resposta no intervalo
+ * `[0,1)`, devolvendo ao desenvolvedor final exatamente a resposta obtida com o
+ * uso da mesma.
+ *
+ * Esse comportamento será documentado e frizado no `README.md`.
+ * =============================================================================
+ */
 
 /**
  * Embaralha um array ou string usando o algoritmo Fisher-Yates.
@@ -254,7 +272,7 @@ export function randomItems<T>(
 export function takeRandomItems<T>(
   value: T[],
   n: number,
-  random?: () => number,
+  random = Math.random,
 ): T[] {
   if (n <= 0) return [];
   if (n >= value.length) {

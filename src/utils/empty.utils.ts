@@ -1,87 +1,110 @@
 import { isObject, isTypeOf } from './types.utils';
 
 /**
- * Representa um objeto plano (plain object), ou seja, um objeto cujo protótipo
- * é exatamente `Object.prototype`.
- */
-export type PlainObject = Record<string, unknown>;
-
-/**
- * Verifica se o valor é um objeto plano (plain object), ou seja, que possui
- * protótipo igual a `Object.prototype`.
- *
- * @typeguard `value is PlainObject`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is PlainObject` - Verdadeiro se for um objeto plano.
+ * Tipo marcado que representa um objeto plano puro (`PlainObject`).
  *
  * @remarks
- *  **value** - Esta função considera apenas objetos cujo protótipo seja
- *  estritamente igual a `Object.prototype`. Objetos criados com
- *  `Object.create(null)`, instâncias de classes ou objetos com protótipo
- *  modificado não são considerados planos.
+ *  O brand `_brand` garante que apenas objetos validados pela função
+ *  `PlainObject` possam ser atribuídos a este tipo.
  *
  * @example
- *  const obj = { a: 1 };
- *  if (isPlainObject(obj)) {
- *    // obj é PlainObject
+ *  const obj: PlainObject = PlainObject({ a: 1 });
+ */
+export type PlainObject = Record<string, unknown> & { _brand: PlainObject };
+
+/**
+ * Verifica se um valor é um objeto plano puro (`PlainObject`).
+ *
+ * @remarks
+ *  Um `PlainObject` é um objeto cujo protótipo é exatamente `Object.prototype`.
+ *
+ * @typeguard `value is PlainObject`
+ * @param value - `unknown` - Valor a ser verificado.
+ * @return `value is PlainObject` - Verdadeiro se o valor for um objeto plano.
+ *
+ * @example
+ *  const value = { a: 1 };
+ *  if (isPlainObject(value)) {
+ *    // value é PlainObject
  *  }
  *
- *  isPlainObject(new Date()); // false
- *  isPlainObject(Object.create({ a: 1 })); // false
+ *  console.log({}); // true
+ *  console.log(new Object()); // true
+ *  console.log(new Date()); // false
+ *  console.log(Object.create(null)); // false
+ *  console.log(Object.create({ a: 1 })); // false
  */
 export function isPlainObject(value: unknown): value is PlainObject {
   return isObject(value) && Object.getPrototypeOf(value) === Object.prototype;
 }
 
 /**
- * Verifica se o valor está vazio: string vazia (`''`), array vazio (`[]`) ou
- * objeto plano sem propriedades próprias.
- *
- * @param value - `string | unknown[] | object` - Valor a ser verificado.
- * @return `boolean` - Verdadeiro se o valor estiver vazio.
+ * Converte um `Record<string, unknown>` em `PlainObject`, validando o tipo.
  *
  * @remarks
- *  **value** - A verificação para objetos aplica-se apenas a objetos planos
- *  (ver `isPlainObject`). Objetos não planos, como instâncias de classes ou
- *  objetos com protótipo diferente de `Object.prototype`, sempre retornam
- *  `false`, mesmo que não tenham propriedades próprias.
+ *  Lança um `TypeError` caso o valor não seja um objeto plano.
+ *
+ * @param value - `Record<string, unknown>` - Objeto candidato a `PlainObject`.
+ * @return `PlainObject` - O mesmo objeto com a marca de tipo nominal.
  *
  * @example
- *  isEmpty('');   // true
- *  isEmpty([]);   // true
- *  isEmpty({});   // true
- *  isEmpty('abc'); // false
- *  isEmpty([1]);   // false
- *  isEmpty({ a: 1 }); // false
- *  isEmpty(new Date()); // false (não é um objeto plano)
+ *  const p = PlainObject({ x: 10 }); // p é PlainObject
  */
-export function isEmpty(value: string | unknown[] | object): boolean {
-  if (isTypeOf(value, 'string', 'array')) return value.length === 0;
-  if (!isPlainObject(value)) return false;
-  for (const k in value) if (Object.hasOwn(value, k)) return true;
-  return false;
+export function PlainObject(value: Record<string, unknown>): PlainObject {
+  if (!isPlainObject(value)) throw new TypeError('value is not a PlainObject');
+  return value;
 }
 
 /**
- * Verifica se o valor não está vazio. É a negação lógica de `isEmpty`.
+ * Verifica se uma string, array ou objeto plano está vazio.
  *
- * @param value - `string | unknown[] | object` - Valor a ser verificado.
+ * @remarks
+ *  Para objetos planos, considera vazio se não houver propriedades próprias
+ *  enumeráveis.
+ *
+ * @param value - `string | unknown[] | object` - Valor a ser analisado.
+ * @return `boolean` - Verdadeiro se o valor estiver vazio.
+ *
+ * @remarks
+ *  - **value** - Strings e arrays são verificados pela propriedade `length`.
+ *    Objetos são avaliados iterando sobre propriedades próprias.
+ *
+ * @example
+ *  isEmpty('');        // true
+ *  isEmpty({});        // true
+ *  isEmpty([]);        // true
+ *  isEmpty('example'); // false
+ *  isEmpty([1, 2, 3]); // false
+ *  isEmpty({ a: 1 });  // false
+ */
+export function isEmpty(value: string | unknown[] | PlainObject): boolean {
+  if (isTypeOf(value, 'string', 'array')) return value.length === 0;
+  for (const k in value) if (Object.hasOwn(value, k)) return false;
+  return true;
+}
+
+/**
+ * Verifica se uma string, array ou objeto plano não está vazio.
+ *
+ * @remarks
+ *  Para objetos planos, considera não-vazio se houver propriedades próprias
+ *  enumeráveis.
+ *
+ * @param value - `string | unknown[] | object` - Valor a ser analisado.
  * @return `boolean` - Verdadeiro se o valor não estiver vazio.
  *
  * @remarks
- *  **value** - Segue as mesmas regras de `isEmpty`: para objetos, apenas
- *  objetos planos com pelo menos uma propriedade própria são considerados não
- *  vazios.
+ *  - **value** - Strings e arrays são verificados pela propriedade `length`.
+ *    Objetos são avaliados iterando sobre propriedades próprias.
  *
  * @example
- *  isNotEmpty('abc'); // true
- *  isNotEmpty([1]);   // true
- *  isNotEmpty({ a: 1 }); // true
- *  isNotEmpty('');    // false
- *  isNotEmpty([]);    // false
- *  isNotEmpty({});    // false
- *  isNotEmpty(new Date()) // true (não é um objeto plano)
+ *  isNotEmpty('example');  // true
+ *  isNotEmpty([1, 2, 3]);  // true
+ *  isNotEmpty({ a: 1 });   // true
+ *  isNotEmpty('');         // false
+ *  isNotEmpty([]);         // false
+ *  isNotEmpty({});         // false
  */
-export function isNotEmpty(value: string | unknown[] | object): boolean {
+export function isNotEmpty(value: string | unknown[] | PlainObject): boolean {
   return !isEmpty(value);
 }

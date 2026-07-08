@@ -1,13 +1,41 @@
 /* eslint-disable @typescript-eslint/no-unsafe-function-type */
 
-/**
- * Mapeia strings literais para os respectivos tipos em tempo de execução.
+/** =============================================================================
+ * O código se propõe à substituir o `typeof` nativo (emprestado do JavaScript)
+ * por uma implementação mais adaptada e coerente dentro do TypeScript.
  *
- * @example
- *  const example: TypeMap['string'] = 'example';
+ * Partimos da idéia de que `null` e `Array` deveriam ser considerados tipos
+ * primitivos em TypeScript, visto que são inferíveis de forma específica, e
+ * ainda recebem tratamento alternativo de acordo com o cenário.
+ *
+ * Por exemplo, mesmo que `typeof null === 'object'`, ao inferir `null` à uma
+ * variável em TypeScript, você ativamente impossibilita que, futuramente,
+ * objetos (ou funções) sejam atribuídos à ela, diferente do JavaScript.
+ *
+ * Já para arrays, existe toda uma sintaxe específica criada apenas para esse
+ * "objeto" (e.g. `const arr: string[]`), além de um tratamento diferenciado
+ * para tuplas que, sequer existem em JavaScript.
+ *
+ * Dessa forma, o código redefine o tipo `object` como uma exclusão de nulos e
+ * arrays.
+ *
+ * Vale ressaltar que, mesmo que funções ainda sejam objetos, o próprio
+ * JavaScript já diferencia ambos ao incluir a possibilidade de 'function' como
+ * retorno de `typeof`. O código absorve esse comportamento.
+ * =============================================================================
+ */
+
+/**
+ * Mapeamento de strings literais para os tipos correspondentes em tempo de
+ * execução.
+ *
+ * @remarks
+ *  - Fornece a base para os demais utilitários de tipo. As chaves representam
+ *    os possíveis retornos de `typeOf`.
  */
 export interface TypeMap {
   undefined: undefined;
+  null: null;
   string: string;
   number: number;
   boolean: boolean;
@@ -15,43 +43,37 @@ export interface TypeMap {
   bigint: bigint;
   function: Function;
   object: object;
-  null: null;
   array: unknown[];
 }
 
 /**
- * União das chaves do mapa de tipos.
- *
- * @example
- *  const value: unknown = 'example';
- *  const example1: TypeOf = typeof value; // 'string'
- *  const example2: TypeOf = 'null';
- *  const example2: TypeOf = 'array';
+ * União das chaves de `TypeMap`, representando todas as categorias de tipo
+ * reconhecidas.
  */
 export type TypeOf = keyof TypeMap;
 
 /**
- * Recupera o tipo correspondente à chave fornecida.
+ * Recupera o tipo correspondente a uma chave de `TypeMap`.
+ *
+ * @template T - Chave(s) de `TypeMap`.
  *
  * @example
- *  let example: Type<'string' | 'number'> = 'example'; // string | number
- *  example = 1;
- *
- *  example = true // TypeErr: Type 'boolean' is not assignable to type 'Type<"string" | "number">'.
+ *  let value: Type<'string' | 'number'>; // string | number
  */
 export type Type<T extends TypeOf> = TypeMap[T];
 
 /**
- * Determina o tipo primitivo ou categorizado de um valor com tratamento
- * especial para `null` e `array`.
+ * Retorna a categoria de tipo de um valor, tratando `null` e `Array`.
  *
  * @param value - `unknown` - Valor a ser inspecionado.
- * @return `TypeOf` - O tipo identificado.
+ * @return `TypeOf` - A categoria de tipo identificada.
  *
  * @example
- *  typeOf(null); // 'null'
- *  typeOf([]);   // 'array'
- *  typeOf('');   // 'string'
+ *  typeOf(null);     // 'null'
+ *  typeOf([]);       // 'array'
+ *  typeOf(() => {}); // 'function'
+ *  typeOf({});       // 'object'
+ *  typeOf('a');      // 'string'
  */
 export function typeOf(value: unknown): TypeOf {
   if (value === undefined) return 'undefined';
@@ -61,21 +83,21 @@ export function typeOf(value: unknown): TypeOf {
 }
 
 /**
- * Verifica se o tipo do valor está entre os tipos especificados. Sempre retorna
- * `false` se nenhum tipo for especificado.
+ * Verifica se o valor pertence a pelo menos um dos tipos especificados.
+ *
+ * @remarks
+ *  Retorna `false` se nenhum tipo for informado (`value is never`);
  *
  * @typeguard `value is Type<T>`
- * @template T - Estende `TypeOf`.
+ * @template T - Categorias de tipo a verificar, estendendo `TypeOf`.
  * @param value - `unknown` - Valor a ser testado.
- * @param ...types - `T[]` - Lista de tipos a serem verificados.
- * @return `value is Type<T>` - Verdadeiro se o tipo estiver na lista.
+ * @param ...types - `T[]` - Lista de categorias de tipo aceitas.
+ * @return `value is Type<T>` - `true` se o tipo do valor estiver entre os especificados.
  *
  * @example
- *  if (isTypeOf(val, 'string', 'number')) {
- *    // val é string | number
+ *  if (isTypeOf(value, 'string', 'number')) {
+ *    // value é string | number
  *  }
- *
- *  console.log(isTypeOf(val)); // false
  */
 export function isTypeOf<T extends TypeOf>(
   value: unknown,
@@ -85,545 +107,582 @@ export function isTypeOf<T extends TypeOf>(
   return types.includes(typeOf(value) as T);
 }
 
-/** Exclui um ou mais tipos do mapa, retornando a união dos tipos restantes. */
-export type NotType<T extends TypeOf> = Type<Exclude<TypeOf, T>>;
-
 /**
- * Verifica se o valor não pertence a nenhum dos tipos especificados. Sempre
- * retorna `true` se nenhum tipo for especificado.
+ * Verifica se o valor não pertence a nenhum dos tipos especificados.
  *
- * @typeguard `value is NotType<T>`
- * @template T - Estende `TypeOf`.
- * @param value - `unknown` - Valor a ser testado.
- * @param ...types - `T[]` - Lista de tipos a serem excluídos.
- * @return `value is NotType<T>` - Verdadeiro se o tipo não estiver na lista.
+ * @remarks
+ *  - Sempre retorna `true` se nenhum tipo for informado (`value is U`).
+ *  - Remove apenas os tipos fornecidos do tipo original.
+ *
+ * @typeguard `value is Exclude<U, Type<T>>`
+ * @template U - Tipo original do valor (inferido automaticamente).
+ * @template T - Categorias de tipo a excluir, estendendo `TypeOf`.
+ * @param value - `U` - Valor a ser testado.
+ * @param ...types - `T[]` - Categorias de tipo que devem ser excluídas do tipo.
+ * @return `value is Exclude<U, Type<T>>` - `true` se o tipo não estiver entre os informados.
  *
  * @example
- *  if (isNotTypeOf(val, 'null', 'undefined')) {
- *    // val não é null nem undefined
+ *  let value: string | number = 'abc';
+ *  if (isNotTypeOf(value, 'string')) {
+ *    // value agora é number
  *  }
- *
- *  console.log(val); // true
  */
-export function isNotTypeOf<T extends TypeOf>(
-  value: unknown,
+export function isNotTypeOf<U, T extends TypeOf>(
+  value: U,
   ...types: T[]
-): value is NotType<T> {
+): value is Exclude<U, Type<T>> {
   return !isTypeOf(value, ...types);
 }
 
-type Aux<T> = T | T[];
-
-function aux<T>(v: Aux<unknown>, cb: (item: unknown) => boolean): v is Aux<T> {
-  return Array.isArray(v) ? v.every(cb) : cb(v);
-}
+// undefined ===================================================================
 
 /**
- * Verifica se o valor (ou todos os itens do array) é estritamente `undefined`.
+ * Verifica se o valor é estritamente `undefined`.
  *
- * @remarks
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is undefined` para entrada `unknown`.
- *  - `value is undefined[]` para entrada `unknown[]`.
- *
- * @typeguard `value is undefined | undefined[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is undefined | undefined[]` - Verdadeiro se todos os itens forem `undefined`.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is undefined`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is undefined` - `true` se for `undefined`.
  *
  * @example
- *  const value: unknown = undefined;
  *  if (isUndefined(value)) {
  *    // value é undefined
  *  }
- *
- *  const array: unknown[] = [undefined, undefined, undefined];
- *  if (isUndefined(array)) {
- *    // value é undefined[]
- *  }
  */
-export function isUndefined(value: unknown): value is undefined;
-export function isUndefined(value: unknown[]): value is undefined[];
-export function isUndefined(value: Aux<unknown>): value is Aux<undefined> {
-  return aux(value, v => v === undefined);
+export function isUndefined(value: unknown): value is undefined {
+  return value === undefined;
 }
 
 /**
- * Verifica se o valor não é estritamente `undefined`.
+ * Verifica se o valor não é `undefined`, removendo-o do tipo original.
  *
- * @typeguard `value is NotType<'undefined'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'undefined'>` - Verdadeiro se não for `undefined`.
+ * @typeguard `value is Exclude<T, undefined>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, undefined>` - `true` se não for `undefined`.
  *
  * @example
- *  if (isNotUndefined(val)) {
- *    // val não é undefined
+ *  let value: string | undefined = 'abc';
+ *  if (isNotUndefined(value)) {
+ *    // value é string
  *  }
  */
-export function isNotUndefined(value: unknown): value is NotType<'undefined'> {
+export function isNotUndefined<T>(value: T): value is Exclude<T, undefined> {
   return !isUndefined(value);
 }
 
 /**
- * Verifica se o valor (ou todos os itens do array) é estritamente `null`.
+ * Verifica se todos os elementos do array são `undefined`.
  *
- * @remarks
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is null` para entrada `unknown`.
- *  - `value is null[]` para entrada `unknown[]`.
- *
- * @typeguard `value is null | null[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is null | null[]` - Verdadeiro se todos os itens forem `null`.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is undefined[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is undefined[]` - `true` se todos os elementos forem `undefined`.
  *
  * @example
- *  const value: unknown = null;
+ *  if (isUndefinedList(array)) {
+ *    // array é undefined[]
+ *  }
+ */
+export function isUndefinedList(value: unknown[]): value is undefined[] {
+  return value.every(v => isUndefined(v));
+}
+
+// null ========================================================================
+
+/**
+ * Verifica se o valor é estritamente `null`.
+ *
+ * @typeguard `value is null`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is null` - `true` se for `null`.
+ *
+ * @example
  *  if (isNull(value)) {
  *    // value é null
  *  }
- *
- *  const array: unknown[] = [null, null, null];
- *  if (isNull(array)) {
- *    // value é null[]
- *  }
  */
-export function isNull(value: unknown): value is null;
-export function isNull(value: unknown[]): value is null[];
-export function isNull(value: Aux<unknown>): value is Aux<null> {
-  return aux(value, v => v === null);
+export function isNull(value: unknown): value is null {
+  return value === null;
 }
 
 /**
- * Verifica se o valor não é estritamente `null`.
+ * Verifica se o valor não é `null`, removendo-o do tipo original.
  *
- * @typeguard `value is NotType<'null'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'null'>` - Verdadeiro se não for `null`.
+ * @typeguard `value is Exclude<T, null>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, null>` - `true` se não for `null`.
  *
  * @example
- *  if (isNotNull(val)) {
- *    // val não é null
+ *  let value: string | null = 'abc';
+ *  if (isNotNull(value)) {
+ *    // value é string
  *  }
  */
-export function isNotNull(value: unknown): value is NotType<'null'> {
+export function isNotNull<T>(value: T): value is Exclude<T, null> {
   return !isNull(value);
 }
 
-/** Tipo que representa `null` ou `undefined`. */
-export type Nullable = null | undefined;
-
 /**
- * Verifica se o valor (ou todos os itens do array) é `null` ou `undefined`.
+ * Verifica se todos os elementos do array são `null`.
  *
- * @remarks
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is Nullable` para entrada `unknown`.
- *  - `value is Nullable[]` para entrada `unknown[]`.
- *
- * @typeguard `value is Nullable | Nullable[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is Nullable | Nullable[]` - Verdadeiro se todos os itens forem anuláveis.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is null[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is null[]` - `true` se todos os elementos forem `null`.
  *
  * @example
- *  const value: unknown = null;
- *  if (isNullable(value)) {
- *    // value é null ou undefined
- *  }
- *
- *  const array: unknown[] = [null, undefined, null];
- *  if (isNullable(array)) {
- *    // value é uma lista de nulos e/ou undefineds
+ *  if (isNullList(array)) {
+ *    // array é null[]
  *  }
  */
-export function isNullable(value: unknown): value is Nullable;
-export function isNullable(value: unknown[]): value is Nullable[];
-export function isNullable(value: Aux<unknown>): value is Aux<Nullable> {
-  return aux(value, v => isTypeOf(v, 'undefined', 'null'));
+export function isNullList(value: unknown[]): value is null[] {
+  return value.every(v => isNull(v));
+}
+
+// nullable ====================================================================
+
+/**
+ * Verifica se o valor é `undefined` ou `null`.
+ *
+ * @typeguard `value is undefined | null`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is undefined | null` - `true` se for anulável.
+ *
+ * @example
+ *  if (isNullable(value)) {
+ *    // value é undefined ou null
+ *  }
+ */
+export function isNullable(value: unknown): value is undefined | null {
+  return value === undefined || value === null;
 }
 
 /**
- * Verifica se o valor não é `null` nem `undefined`.
+ * Verifica se o valor não é `undefined` nem `null`, removendo-os do tipo.
  *
- * @typeguard `value is NotType<'null' | 'undefined'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'null' | 'undefined'>` - Verdadeiro se não for anulável.
+ * @typeguard `value is Exclude<T, undefined | null>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, undefined | null>` - `true` se não for anulável.
  *
  * @example
- *  if (isNotNullable(val)) {
- *    // val não é null nem undefined
+ *  let value: string | null | undefined = 'abc';
+ *  if (isNotNullable(value)) {
+ *    // value é string
  *  }
  */
-export function isNotNullable(value: unknown): value is NotType<`${Nullable}`> {
+export function isNotNullable<T>(
+  value: T,
+): value is Exclude<T, undefined | null> {
   return !isNullable(value);
 }
 
 /**
- * Verifica se o valor (ou todos os itens do array) é uma `string`.
+ * Verifica se todos os elementos do array são `undefined` ou `null`.
  *
- * @remarks
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is string` para entrada `unknown`.
- *  - `value is string[]` para entrada `unknown[]`.
- *
- * @typeguard `value is string | string[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is string | string[]` - Verdadeiro se todos os itens forem `string`.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is (undefined | null)[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is (undefined | null)[]` - `true` se todos os elementos forem anuláveis.
  *
  * @example
- *  const value: unknown = 'example';
+ *  if (isNullableList(array)) {
+ *    // array é (undefined | null)[]
+ *  }
+ */
+export function isNullableList(
+  value: unknown[],
+): value is (undefined | null)[] {
+  return value.every(v => isNullable(v));
+}
+
+// string ======================================================================
+
+/**
+ * Verifica se o valor é uma `string`.
+ *
+ * @typeguard `value is string`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is string` - `true` se for `string`.
+ *
+ * @example
  *  if (isString(value)) {
  *    // value é string
  *  }
- *
- *  const array: unknown[] = ['ex 1', 'ex 2', 'ex 3'];
- *  if (isString(array)) {
- *    // value é string[]
- *  }
  */
-export function isString(value: unknown): value is string;
-export function isString(value: unknown[]): value is string[];
-export function isString(value: Aux<unknown>): value is Aux<string> {
-  return aux(value, v => typeof v === 'string');
+export function isString(value: unknown): value is string {
+  return typeof value === 'string';
 }
 
 /**
- * Verifica se o valor não é uma `string`.
+ * Verifica se o valor não é uma `string`, removendo-a do tipo original.
  *
- * @typeguard `value is NotType<'string'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'string'>` - Verdadeiro se não for `string`.
+ * @typeguard `value is Exclude<T, string>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, string>` - `true` se não for `string`.
  *
  * @example
- *  if (isNotString(val)) {
- *    // val não é string
+ *  let value: string | number = 'abc';
+ *  if (isNotString(value)) {
+ *    // value é number
  *  }
  */
-export function isNotString(value: unknown): value is NotType<'string'> {
+export function isNotString<T>(value: T): value is Exclude<T, string> {
   return !isString(value);
 }
 
 /**
- * Verifica se o valor (ou todos os itens do array) é um `number`.
+ * Verifica se todos os elementos do array são `string`.
  *
- * @remarks
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is number` para entrada `unknown`.
- *  - `value is number[]` para entrada `unknown[]`.
- *
- * @typeguard `value is number | number[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is number | number[]` - Verdadeiro se todos os itens forem `number`.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is string[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is string[]` - `true` se todos os elementos forem `string`.
  *
  * @example
- *  const value: unknown = 0;
+ *  if (isStringList(array)) {
+ *    // array é string[]
+ *  }
+ */
+export function isStringList(value: unknown[]): value is string[] {
+  return value.every(v => isString(v));
+}
+
+// number ======================================================================
+
+/**
+ * Verifica se o valor é um `number`.
+ *
+ * @typeguard `value is number`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is number` - `true` se for `number`.
+ *
+ * @example
  *  if (isNumber(value)) {
  *    // value é number
  *  }
- *
- *  const array: unknown[] = [0, 1, 2];
- *  if (isNumber(array)) {
- *    // value é number[]
- *  }
  */
-export function isNumber(value: unknown): value is number;
-export function isNumber(value: unknown[]): value is number[];
-export function isNumber(value: Aux<unknown>): value is Aux<number> {
-  return aux(value, v => typeof v === 'number');
+export function isNumber(value: unknown): value is number {
+  return typeof value === 'number';
 }
 
 /**
- * Verifica se o valor não é um `number`.
+ * Verifica se o valor não é um `number`, removendo-o do tipo original.
  *
- * @typeguard `value is NotType<'number'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'number'>` - Verdadeiro se não for `number`.
+ * @typeguard `value is Exclude<T, number>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, number>` - `true` se não for `number`.
  *
  * @example
- *  if (isNotNumber(val)) {
- *    // val não é number
+ *  let value: number | string = 1;
+ *  if (isNotNumber(value)) {
+ *    // value é string
  *  }
  */
-export function isNotNumber(value: unknown): value is NotType<'number'> {
+export function isNotNumber<T>(value: T): value is Exclude<T, number> {
   return !isNumber(value);
 }
 
 /**
- * Verifica se o valor (ou todos os itens do array) é um `boolean`.
+ * Verifica se todos os elementos do array são `number`.
  *
- * @remarks
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is boolean` para entrada `unknown`.
- *  - `value is boolean[]` para entrada `unknown[]`.
- *
- * @typeguard `value is boolean | boolean[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is boolean | boolean[]` - Verdadeiro se todos os itens forem `boolean`.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is number[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is number[]` - `true` se todos os elementos forem `number`.
  *
  * @example
- *  const value: unknown = true;
+ *  if (isNumberList(array)) {
+ *    // array é number[]
+ *  }
+ */
+export function isNumberList(value: unknown[]): value is number[] {
+  return value.every(v => isNumber(v));
+}
+
+// boolean =====================================================================
+
+/**
+ * Verifica se o valor é um `boolean`.
+ *
+ * @typeguard `value is boolean`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is boolean` - `true` se for `boolean`.
+ *
+ * @example
  *  if (isBoolean(value)) {
  *    // value é boolean
  *  }
- *
- *  const array: unknown[] = [true, false, true];
- *  if (isBoolean(array)) {
- *    // value é boolean[]
- *  }
  */
-export function isBoolean(value: unknown): value is boolean;
-export function isBoolean(value: unknown[]): value is boolean[];
-export function isBoolean(value: Aux<unknown>): value is Aux<boolean> {
-  return aux(value, v => typeof v === 'boolean');
+export function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
 }
 
 /**
- * Verifica se o valor não é um `boolean`.
+ * Verifica se o valor não é um `boolean`, removendo-o do tipo original.
  *
- * @typeguard `value is NotType<'boolean'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'boolean'>` - Verdadeiro se não for `boolean`.
+ * @typeguard `value is Exclude<T, boolean>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, boolean>` - `true` se não for `boolean`.
  *
  * @example
- *  if (isNotBoolean(val)) {
- *    // val não é boolean
+ *  let value: boolean | string = true;
+ *  if (isNotBoolean(value)) {
+ *    // value é string
  *  }
  */
-export function isNotBoolean(value: unknown): value is NotType<'boolean'> {
+export function isNotBoolean<T>(value: T): value is Exclude<T, boolean> {
   return !isBoolean(value);
 }
 
 /**
- * Verifica se o valor (ou todos os itens do array) é um `symbol`.
+ * Verifica se todos os elementos do array são `boolean`.
  *
- * @remarks
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is symbol` para entrada `unknown`.
- *  - `value is symbol[]` para entrada `unknown[]`.
- *
- * @typeguard `value is symbol | symbol[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is symbol | symbol[]` - Verdadeiro se todos os itens forem `symbol`.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is boolean[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is boolean[]` - `true` se todos os elementos forem `boolean`.
  *
  * @example
- *  const value: unknown = Symbol('example');
+ *  if (isBooleanList(array)) {
+ *    // array é boolean[]
+ *  }
+ */
+export function isBooleanList(value: unknown[]): value is boolean[] {
+  return value.every(v => isBoolean(v));
+}
+
+// symbol ======================================================================
+
+/**
+ * Verifica se o valor é um `symbol`.
+ *
+ * @typeguard `value is symbol`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is symbol` - `true` se for `symbol`.
+ *
+ * @example
  *  if (isSymbol(value)) {
  *    // value é symbol
  *  }
- *
- *  const array: unknown[] = [Symbol('ex 1'), Symbol(ex 2), Symbol(ex 3)];
- *  if (isSymbol(array)) {
- *    // value é symbol[]
- *  }
  */
-export function isSymbol(value: unknown): value is symbol;
-export function isSymbol(value: unknown[]): value is symbol[];
-export function isSymbol(value: Aux<unknown>): value is Aux<symbol> {
-  return aux(value, v => typeof v === 'symbol');
+export function isSymbol(value: unknown): value is symbol {
+  return typeof value === 'symbol';
 }
 
 /**
- * Verifica se o valor não é um `symbol`.
+ * Verifica se o valor não é um `symbol`, removendo-o do tipo original.
  *
- * @typeguard `value is NotType<'symbol'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'symbol'>` - Verdadeiro se não for `symbol`.
+ * @typeguard `value is Exclude<T, symbol>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, symbol>` - `true` se não for `symbol`.
  *
  * @example
- *  if (isNotSymbol(val)) {
- *    // val não é symbol
+ *  let value: symbol | string = Symbol();
+ *  if (isNotSymbol(value)) {
+ *    // value é string
  *  }
  */
-export function isNotSymbol(value: unknown): value is NotType<'symbol'> {
+export function isNotSymbol<T>(value: T): value is Exclude<T, symbol> {
   return !isSymbol(value);
 }
 
 /**
- * Verifica se o valor (ou todos os itens do array) é um `bigint`.
+ * Verifica se todos os elementos do array são `symbol`.
  *
- * @remarks
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is bigint` para entrada `unknown`.
- *  - `value is bigint[]` para entrada `unknown[]`.
- *
- * @typeguard `value is bigint | bigint[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is bigint | bigint[]` - Verdadeiro se todos os itens forem `bigint`.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is symbol[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is symbol[]` - `true` se todos os elementos forem `symbol`.
  *
  * @example
- *  const value: unknown = BigInt(0);
- *  if (isBigint(value)) {
+ *  if (isSymbolList(array)) {
+ *    // array é symbol[]
+ *  }
+ */
+export function isSymbolList(value: unknown[]): value is symbol[] {
+  return value.every(v => isSymbol(v));
+}
+
+// bigint ======================================================================
+
+/**
+ * Verifica se o valor é um `bigint`.
+ *
+ * @typeguard `value is bigint`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is bigint` - `true` se for `bigint`.
+ *
+ * @example
+ *  if (isBigInt(value)) {
  *    // value é bigint
  *  }
- *
- *  const array: unknown[] = [BigInt(0), BigInt(1), BigInt(2)];
- *  if (isBigint(array)) {
- *    // value é bigint[]
- *  }
  */
-export function isBigint(value: unknown): value is bigint;
-export function isBigint(value: unknown[]): value is bigint[];
-export function isBigint(value: Aux<unknown>): value is Aux<bigint> {
-  return aux(value, v => typeof v === 'bigint');
+export function isBigInt(value: unknown): value is bigint {
+  return typeof value === 'bigint';
 }
 
 /**
- * Verifica se o valor não é um `bigint`.
+ * Verifica se o valor não é um `bigint`, removendo-o do tipo original.
  *
- * @typeguard `value is NotType<'bigint'>`
+ * @typeguard `value is Exclude<T, bigint>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, bigint>` - `true` se não for `bigint`.
+ *
+ * @example
+ *  let value: bigint | string = BigInt(1);
+ *  if (isNotBigInt(value)) {
+ *    // value é string
+ *  }
+ */
+export function isNotBigInt<T>(value: T): value is Exclude<T, bigint> {
+  return !isBigInt(value);
+}
+
+/**
+ * Verifica se todos os elementos do array são `bigint`.
+ *
+ * @typeguard `value is bigint[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is bigint[]` - `true` se todos os elementos forem `bigint`.
+ *
+ * @example
+ *  if (isBigIntList(array)) {
+ *    // array é bigint[]
+ *  }
+ */
+export function isBigIntList(value: unknown[]): value is bigint[] {
+  return value.every(v => isBigInt(v));
+}
+
+// function ====================================================================
+
+/**
+ * Verifica se o valor é uma função (inclui classes e callables).
+ *
+ * @typeguard `value is Function`
  * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'bigint'>` - Verdadeiro se não for `bigint`.
+ * @return `value is Function` - `true` se for função.
  *
  * @example
- *  if (isNotBigint(val)) {
- *    // val não é bigint
- *  }
- */
-export function isNotBigint(value: unknown): value is NotType<'bigint'> {
-  return !isBigint(value);
-}
-
-/**
- * Verifica se o valor (ou todos os itens do array) é uma função.
- *
- * @remarks
- *  Inclui funções declaradas, arrow functions, métodos e funções construtoras.
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is Function` para entrada `unknown`.
- *  - `value is Function[]` para entrada `unknown[]`.
- *
- * @typeguard `value is Function | Function[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is Function | Function[]` - Verdadeiro se todos os itens forem funções.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
- *
- * @example
- *  const value: unknown = () => {};
  *  if (isFunction(value)) {
  *    // value é Function
  *  }
- *
- *  const array: unknown[] = [() => {}, Array.from, Date.constructor];
- *  if (isFunction(array)) {
- *    // value é Function[]
- *  }
  */
-export function isFunction(value: unknown): value is Function;
-export function isFunction(value: unknown[]): value is Function[];
-export function isFunction(value: Aux<unknown>): value is Aux<Function> {
-  return aux(value, v => typeof v === 'function');
+export function isFunction(value: unknown): value is Function {
+  return typeof value === 'function';
 }
 
 /**
- * Verifica se o valor não é uma função.
+ * Verifica se o valor não é uma função, removendo-a do tipo original.
  *
- * @typeguard `value is NotType<'function'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'function'>` - Verdadeiro se não for uma função.
+ * @typeguard `value is Exclude<T, Function>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, Function>` - `true` se não for função.
  *
  * @example
- *  if (isNotFunction(val)) {
- *    // val não é função
+ *  let value: Function | string = () => {};
+ *  if (isNotFunction(value)) {
+ *    // value é string
  *  }
  */
-export function isNotFunction(value: unknown): value is NotType<'function'> {
+export function isNotFunction<T>(value: T): value is Exclude<T, Function> {
   return !isFunction(value);
 }
 
 /**
- * Verifica se o valor (ou todos os itens do array) é um objeto.
+ * Verifica se todos os elementos do array são funções.
  *
- * @remarks
- *  Considera objetos literais, instâncias de classes e Object.create(null),
- *  mas exclui `null`, arrays e funções.
- *  Possui sobrecargas para refinar o tipo corretamente:
- *  - `value is object` para entrada `unknown`.
- *  - `value is object[]` para entrada `unknown[]`.
- *
- * @typeguard `value is object | object[]`
- * @param value - `unknown | unknown[]` - Valor ou array a ser verificado.
- * @return `value is object | object[]` - Verdadeiro se todos os itens forem objetos.
- *
- * @remarks
- *  **value** - A função aceita tanto um valor único quanto um array. Se for um
- *  array, a verificação é aplicada a todos os elementos.
+ * @typeguard `value is Function[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is Function[]` - `true` se todos os elementos forem funções.
  *
  * @example
- *  const value: unknown = {};
- *  if (isObject(value)) {
- *    // value é object
- *  }
- *
- *  const array: unknown[] = [{}, Object.create(null), Date];
- *  if (isObject(array)) {
- *    // value é object[]
+ *  if (isFunctionList(array)) {
+ *    // array é Function[]
  *  }
  */
-export function isObject(value: unknown): value is object;
-export function isObject(value: unknown[]): value is object[];
-export function isObject(value: Aux<unknown>): value is Aux<object> {
-  return aux(value, v => isTypeOf(v, 'object'));
+export function isFunctionList(value: unknown[]): value is Function[] {
+  return value.every(v => isFunction(v));
+}
+
+// object ======================================================================
+
+/**
+ * Verifica se o valor é um objeto não nulo, não função e não array.
+ *
+ * @remarks
+ *  O Type Guard refina para o tipo TypeScript `object`, que ainda inclui
+ *  `null`, `Array` e `Function`, mas garante que o valor não seja nenhum deste
+ *  no momento da validação.
+ *
+ * @typeguard `value is object`
+ * @param value - `unknown` - Valor a ser testado.
+ * @return `value is object` - `true` se for objeto (não null, array ou função).
+ *
+ * @example
+ *  if (isObject(value)) {
+ *    // value é object (segundo a verificação restrita)
+ *  }
+ */
+export function isObject(value: unknown): value is object {
+  return isTypeOf(value, 'object');
 }
 
 /**
  * Verifica se o valor não é um objeto.
  *
- * @typeguard `value is NotType<'object'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'object'>` - Verdadeiro se não for um objeto.
+ * @remarks
+ *  A validação retorna `false` para qualquer `null`, `Function` ou `Array`.
+ *
+ * @typeguard `value is Exclude<T, object>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, object>` - `true` se não for objeto.
  *
  * @example
- *  if (isNotObject(val)) {
- *    // val não é objeto
+ *  let value: object | string = {};
+ *  if (isNotObject(value)) {
+ *    // value é string
  *  }
  */
-export function isNotObject(value: unknown): value is NotType<'object'> {
+export function isNotObject<T>(value: T): value is Exclude<T, object> {
   return !isObject(value);
 }
+
+/**
+ * Verifica se todos os elementos do array são objetos não nulos, não funções e
+ * não arrays.
+ *
+ * @remarks
+ *  Utiliza `ìsObject` para validar cada item do array, utilizando os mesmos
+ *  princípios.
+ *
+ * @typeguard `value is object[]`
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @return `value is object[]` - `true` se todos os elementos forem objetos.
+ *
+ * @example
+ *  if (isObjectList(array)) {
+ *    // array é object[]
+ *  }
+ */
+export function isObjectList(value: unknown[]): value is object[] {
+  return value.every(v => isObject(v));
+}
+
+// array =======================================================================
 
 /**
  * Verifica se o valor é um array.
  *
  * @typeguard `value is unknown[]`
  * @param value - `unknown` - Valor a ser testado.
- * @return `value is unknown[]` - Verdadeiro se for um array.
+ * @return `value is unknown[]` - `true` se for array.
  *
  * @example
- *  if (isArray(val)) {
- *    // val é unknown[]
+ *  if (isArray(value)) {
+ *    // value é unknown[]
  *  }
  */
 export function isArray(value: unknown): value is unknown[] {
@@ -631,42 +690,47 @@ export function isArray(value: unknown): value is unknown[] {
 }
 
 /**
- * Verifica se o valor não é um array.
+ * Verifica se o valor não é um array, removendo-o do tipo original.
  *
- * @typeguard `value is NotType<'array'>`
- * @param value - `unknown` - Valor a ser testado.
- * @return `value is NotType<'array'>` - Verdadeiro se não for um array.
+ * @remarks
+ *  Para `T = object`, o Type Guard mantém o tipo original, que ainda inclui
+ *  `Array`, mas garante que o valor não o seja no momento da validação.
+ *
+ * @typeguard `value is Exclude<T, unknown[]>`
+ * @template T - Tipo original do valor.
+ * @param value - `T` - Valor a ser testado.
+ * @return `value is Exclude<T, unknown[]>` - `true` se não for array.
  *
  * @example
- *  if (isNotArray(val)) {
- *    // val não é array
+ *  let value: unknown[] | string = [];
+ *  if (isNotArray(value)) {
+ *    // value é string
  *  }
  */
-export function isNotArray(value: unknown): value is NotType<'array'> {
+export function isNotArray<T>(value: T): value is Exclude<T, unknown[]> {
   return !isArray(value);
 }
 
 /**
- * Verifica se **todos** os elementos de um array pertencem a um dos tipos
- * especificados. Sempre retorna `true` se o array estiver vazio. Sempre retorna
- * `false` se nenhum tipo for especificado.
+ * Verifica se todos os elementos do array pertencem a pelo menos um dos tipos.
+ *
+ * @remarks
+ *  - Sempre retorna `true` se o array estiver vazio, senão;
+ *  - Retorna `false` se nenhum tipo for informado;
  *
  * @typeguard `value is Type<T>[]`
- * @template T - Tipos literais permitidos. Estende `TypeOf`.
- * @param value - `unknown[]` - Array cujos elementos serão verificados.
- * @param ...types - `T[]` - Lista de tipos que os elementos devem possuir.
- * @return `value is Type<T>[]` - Verdadeiro se todos os elementos forem pelo menos de um dos tipos especificados.
+ * @template T - Categorias de tipo aceitas, estendendo `TypeOf`.
+ * @param value - `unknown[]` - Array a ser verificado.
+ * @param ...types - `T[]` - Categorias permitidas para os elementos.
+ * @return `value is Type<T>[]` - `true` se todos os elementos forem de algum dos tipos.
  *
  * @example
- *  const data: unknown[] = ['a', 'b', 'c'];
- *  if (isArrayOf(data, 'string')) {
- *    // data é string[]
+ *  if (isArrayOf(array, 'string', 'number')) {
+ *    // array é (string | number)[]
  *  }
  *
- *  const mixed: unknown[] = [1, 'two', 3];
- *  if (isArrayOf(mixed, 'string', 'number')) {
- *    // mixed é (string | number)[]
- *  }
+ *  console.log(isArrayOf([])); // true
+ *  console.log(isArrayOf([1, 2, 3])); // false
  */
 export function isArrayOf<T extends TypeOf>(
   value: unknown[],
