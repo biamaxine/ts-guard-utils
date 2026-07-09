@@ -630,27 +630,6 @@ export function isObject(value: unknown): value is object {
 }
 
 /**
- * Verifica se o valor não é um objeto.
- *
- * @remarks
- *  A validação retorna `false` para qualquer `null`, `Function` ou `Array`.
- *
- * @typeguard `value is Exclude<T, object>`
- * @template T - Tipo original do valor.
- * @param value - `T` - Valor a ser testado.
- * @return `value is Exclude<T, object>` - `true` se não for objeto.
- *
- * @example
- *  let value: object | string = {};
- *  if (isNotObject(value)) {
- *    // value é string
- *  }
- */
-export function isNotObject<T>(value: T): value is Exclude<T, object> {
-  return !isObject(value);
-}
-
-/**
  * Verifica se todos os elementos do array são objetos não nulos, não funções e
  * não arrays.
  *

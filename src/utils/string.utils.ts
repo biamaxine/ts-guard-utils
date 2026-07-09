@@ -1,5 +1,5 @@
 import { randomItem, shuffle } from './array.utils';
-import { isEmpty, PlainObject } from './empty.utils';
+import { isEmpty } from './empty.utils';
 
 const REGEX_MAP = {
   F_WORD: /\b\p{L}+/gu,
@@ -330,7 +330,12 @@ export function randomString<
 >(opts: RandomStringOptions<T> = {}, random = Math.random): string {
   const { chars_map = CHARS_MAP, ...rest } = opts;
 
-  const config = isEmpty(PlainObject(rest)) ? { length: 9 } : opts;
+  if (chars_map !== CHARS_MAP) {
+    if (isEmpty(chars_map)) return '';
+    if (isEmpty(Object.values(chars_map).join(''))) return '';
+  }
+
+  const config = isEmpty(rest) ? { length: 9 } : opts;
 
   if ('length' in config) {
     const { length = 9 } = config;

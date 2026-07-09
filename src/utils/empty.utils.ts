@@ -3,14 +3,10 @@ import { isObject, isTypeOf } from './types.utils';
 /**
  * Tipo marcado que representa um objeto plano puro (`PlainObject`).
  *
- * @remarks
- *  O brand `_brand` garante que apenas objetos validados pela função
- *  `PlainObject` possam ser atribuídos a este tipo.
- *
  * @example
  *  const obj: PlainObject = PlainObject({ a: 1 });
  */
-export type PlainObject = Record<string, unknown> & { _brand: PlainObject };
+export type PlainObject = Record<string, unknown>;
 
 /**
  * Verifica se um valor é um objeto plano puro (`PlainObject`).
@@ -39,30 +35,13 @@ export function isPlainObject(value: unknown): value is PlainObject {
 }
 
 /**
- * Converte um `Record<string, unknown>` em `PlainObject`, validando o tipo.
- *
- * @remarks
- *  Lança um `TypeError` caso o valor não seja um objeto plano.
- *
- * @param value - `Record<string, unknown>` - Objeto candidato a `PlainObject`.
- * @return `PlainObject` - O mesmo objeto com a marca de tipo nominal.
- *
- * @example
- *  const p = PlainObject({ x: 10 }); // p é PlainObject
- */
-export function PlainObject(value: Record<string, unknown>): PlainObject {
-  if (!isPlainObject(value)) throw new TypeError('value is not a PlainObject');
-  return value;
-}
-
-/**
  * Verifica se uma string, array ou objeto plano está vazio.
  *
  * @remarks
  *  Para objetos planos, considera vazio se não houver propriedades próprias
  *  enumeráveis.
  *
- * @param value - `string | unknown[] | object` - Valor a ser analisado.
+ * @param value - `string | unknown[] | PlainObject` - Valor a ser analisado.
  * @return `boolean` - Verdadeiro se o valor estiver vazio.
  *
  * @remarks

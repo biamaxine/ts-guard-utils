@@ -49,7 +49,7 @@ export function clearNulls<T>(array: (T | null)[]): T[] {
   return array.filter(v => v !== null);
 }
 
-/**
+/**+
  * Remove todos os valores `null` e `undefined` de um array.
  *
  * @template T - Tipo dos elementos do array.
